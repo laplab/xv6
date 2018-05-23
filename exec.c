@@ -7,6 +7,8 @@
 #include "x86.h"
 #include "elf.h"
 
+#define BANG_BUF_SIZE 128
+
 int
 exec(char *path, char **argv)
 {
@@ -16,7 +18,7 @@ exec(char *path, char **argv)
   struct elfhdr elf;
   struct inode *ip;
   struct proghdr ph;
-  pde_t *pgdir, *oldpgdir;
+  pde_t *pgdir = 0, *oldpgdir;
   struct proc *curproc = myproc();
 
   begin_op();
@@ -27,7 +29,75 @@ exec(char *path, char **argv)
     return -1;
   }
   ilock(ip);
-  pgdir = 0;
+
+  // Check #!
+  char header[2];
+  if (readi(ip, header, 0, sizeof(header)) == sizeof(header) && header[0] == '#' && header[1] == '!') {    
+    // try to read bang line
+    char line[BANG_BUF_SIZE];
+    int len = readi(ip, line, 2, sizeof(line));
+    if (len <= 0) {
+      iunlockput(ip);
+      end_op();
+      cprintf("exec: bang fail\n");
+      return -1;
+    }
+
+    // treat \n as an end of bang line
+    char *terminal_end = line + BANG_BUF_SIZE - 1, *end = line;
+    while (end < terminal_end) {
+      if (*end == '\n') {
+        break;
+      }
+      end++;
+    }
+    *end = '\0';
+
+    char *argv_new[MAXARG], **argv_ptr = argv_new, **argv_end = argv_new + MAXARG;
+
+    // skip space characters if any
+    char *ptr = line;
+    while (ptr < end && (*ptr == ' ' || *ptr == '\t')) ptr++;
+
+    // extract interpreter path argument
+    char *in_path = ptr;
+    while (ptr < end) {
+      if (*ptr == ' ' || *ptr == '\t') {
+        *ptr = '\0';
+        break;
+      }
+
+      ptr++;
+    }
+
+    // add interpreter path argument
+    *argv_ptr = in_path;
+    argv_ptr++;
+
+    // take next character after delimiter
+    ptr++;
+
+    // skip space characters if any
+    while (ptr < end && (*ptr == ' ' || *ptr == '\t')) ptr++;
+
+    // add optional arg
+    if (ptr+1 < end) {
+      *argv_ptr = ptr;
+      argv_ptr++;
+    }
+    
+    while (argv_ptr+1 < argv_end && *argv) {
+      *argv_ptr = *argv;
+      argv_ptr++;
+      argv++;
+    }
+    *argv_ptr = 0;
+
+    iunlockput(ip);
+    end_op();
+
+    return exec(in_path, argv_new);
+  }
 
   // Check ELF header
   if(readi(ip, (char*)&elf, 0, sizeof(elf)) != sizeof(elf))
