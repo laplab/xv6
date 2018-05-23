@@ -7,8 +7,7 @@
 #include "spinlock.h"
 #include "sleeplock.h"
 #include "file.h"
-
-#define PIPESIZE 512
+#include "pipe.h"
 
 struct pipe {
   struct spinlock lock;
@@ -115,7 +114,9 @@ piperead(struct pipe *p, char *addr, int n)
       break;
     addr[i] = p->data[p->nread++ % PIPESIZE];
   }
-  wakeup(&p->nwrite);  //DOC: piperead-wakeup
+  if (p->nwrite + PIPE_BUF <= p->nread + PIPESIZE) {
+    wakeup(&p->nwrite);  //DOC: piperead-wakeup
+  }
   release(&p->lock);
   return i;
 }
