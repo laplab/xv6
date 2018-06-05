@@ -77,11 +77,12 @@ pipeclose(struct pipe *p, int writable)
 int
 pipewrite(struct pipe *p, char *addr, int n)
 {
-  int i;
+  int i, j, chunk_size;
 
   acquire(&p->lock);
-  for(i = 0; i < n; i++){
-    while(p->nwrite == p->nread + PIPESIZE){  //DOC: pipewrite-full
+  for(i = 0; i < n; i += PIPESIZE){
+    chunk_size = (n-i) > PIPESIZE ? PIPESIZE : (n-i);
+    while(p->nwrite > p->nread + PIPESIZE - chunk_size){  //DOC: pipewrite-full
       if(p->readopen == 0 || myproc()->killed){
         release(&p->lock);
         return -1;
@@ -89,7 +90,9 @@ pipewrite(struct pipe *p, char *addr, int n)
       wakeup(&p->nread);
       sleep(&p->nwrite, &p->lock);  //DOC: pipewrite-sleep
     }
-    p->data[p->nwrite++ % PIPESIZE] = addr[i];
+    for (j = 0; j < chunk_size; j++) {
+      p->data[p->nwrite++ % PIPESIZE] = addr[i+j];
+    }
   }
   wakeup(&p->nread);  //DOC: pipewrite-wakeup1
   release(&p->lock);
@@ -114,9 +117,7 @@ piperead(struct pipe *p, char *addr, int n)
       break;
     addr[i] = p->data[p->nread++ % PIPESIZE];
   }
-  if (p->nwrite + PIPE_BUF <= p->nread + PIPESIZE) {
-    wakeup(&p->nwrite);  //DOC: piperead-wakeup
-  }
+  wakeup(&p->nwrite);  //DOC: piperead-wakeup
   release(&p->lock);
   return i;
 }

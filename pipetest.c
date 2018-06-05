@@ -22,8 +22,8 @@ int main(int argc, char *argv[]) {
     for (int i = 0; i < PROC_COUNT; i++) {
         pids[i] = fork();
         if (!pids[i]) {
-            char buf[PIPE_BUF];
-            for (int j = 0; j < PIPE_BUF; j++) {
+            char buf[PIPESIZE];
+            for (int j = 0; j < PIPESIZE; j++) {
                 buf[j] = 'a' + i;
             }
 
@@ -37,12 +37,10 @@ int main(int argc, char *argv[]) {
     printf(1, "INFO: started forks\n");
 
     int success = 1;
-    char buf[PIPE_BUF];
+    char buf[PIPESIZE];
     for (int i = 0 ; i < PROC_COUNT; i++) {
-//        printf(1, "ebat0");
         read(fd[FD_READ], buf, sizeof(buf));
-//        printf(1, "ebat1"); 
-        for (int j = 0; j < PIPE_BUF && success; j++) {
+        for (int j = 0; j < PIPESIZE && success; j++) {
             success = buf[0] == buf[j];
         }
     }

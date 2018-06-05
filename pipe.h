@@ -1,3 +1,2 @@
 #define PIPESIZE 512
-#define PIPE_BUF (PIPESIZE/2)
 
