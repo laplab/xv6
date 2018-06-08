@@ -178,6 +178,7 @@ UPROGS=\
   _exectest\
   _python_fake\
   script.py\
+  bad_script.py\
 
 fs.img: mkfs README $(UPROGS)
 	./mkfs fs.img README $(UPROGS)

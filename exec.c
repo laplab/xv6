@@ -8,9 +8,10 @@
 #include "elf.h"
 
 #define BANG_BUF_SIZE 128
+#define BANG_MAX_DEPTH 5
 
 int
-exec(char *path, char **argv)
+exec_impl(char *path, char **argv, int depth)
 {
   char *s, *last;
   int i, off;
@@ -36,10 +37,17 @@ exec(char *path, char **argv)
     // try to read bang line
     char line[BANG_BUF_SIZE];
     int len = readi(ip, line, 2, sizeof(line));
+
+    iunlockput(ip);
+    end_op();
+
     if (len <= 0) {
-      iunlockput(ip);
-      end_op();
       cprintf("exec: bang fail\n");
+      return -1;
+    }
+
+    if (depth == BANG_MAX_DEPTH) {
+      cprintf("exec: bang max depth exceeded\n");
       return -1;
     }
 
@@ -93,10 +101,7 @@ exec(char *path, char **argv)
     }
     *argv_ptr = 0;
 
-    iunlockput(ip);
-    end_op();
-
-    return exec(in_path, argv_new);
+    return exec_impl(in_path, argv_new, depth+1);
   }
 
   // Check ELF header
@@ -182,3 +187,9 @@ exec(char *path, char **argv)
   }
   return -1;
 }
+
+int
+exec(char *path, char **argv) {
+  return exec_impl(path, argv, 0);
+}
+
